@@ -16,6 +16,8 @@ export interface AttachedFile {
   content?: string; // For text files
   uploadedImageId?: string; // After upload to server
   uploadedImageUrl?: string; // Public URL after upload (presigned R2 URL or static path)
+  uploadedToRAG?: boolean; // For PDF files uploaded to RAG
+  ragDocumentId?: string; // RAG document ID after upload
 }
 
 export class ChatState {
@@ -29,6 +31,7 @@ export class ChatState {
   models = $state<AIModelConfig[]>([]);
   currentChatId = $state<string | null>(null);
   userId = $state<string | null>(null);
+  systemPrompt = $state<string>("");
   chatHistory = $state<
     Array<{
       id: string;
@@ -68,6 +71,27 @@ export class ChatState {
   // Track fresh chat creation to preserve tool selection
   isFreshChat = $state(false);
 
+  // Character presets
+  characterPresets = $state<Array<{
+    id: string;
+    name: string;
+    systemPrompt: string;
+    description?: string;
+    isDefault: boolean;
+    createdAt: string;
+    updatedAt: string;
+  }>>([]);
+  selectedCharacterPresetId = $state<string | null>(null);
+  isLoadingCharacterPresets = $state(false);
+  showCharacterPresetModal = $state(false);
+  editingCharacterPreset = $state<{
+    id: string;
+    name: string;
+    systemPrompt: string;
+    description?: string;
+    isDefault: boolean;
+  } | null>(null);
+
   constructor() {
     // Auto-load models when state is created
     if (browser) {
@@ -94,13 +118,16 @@ export class ChatState {
       if (currentSessionId !== previousSessionId) {
         previousSessionId = currentSessionId;
         if (currentSessionId) {
-          // User logged in, load chat history and reset guest count
+          // User logged in, load chat history, character presets, and reset guest count
           this.loadChatHistory();
+          this.loadCharacterPresets();
           this.resetGuestMessageCount();
           this.loadModels(); // Reload models to get full access
         } else {
-          // User logged out, clear chat history and load guest count
+          // User logged out, clear chat history and character presets, load guest count
           this.chatHistory = [];
+          this.characterPresets = [];
+          this.selectedCharacterPresetId = null;
           this.loadGuestMessageCount();
           this.loadModels(); // Reload models to get restricted access
         }
@@ -331,6 +358,8 @@ export class ChatState {
         // Set model first, then messages to avoid triggering the dialog
         this.selectedModel = data.chat.model;
         this.previousModel = data.chat.model; // Update previous model to match
+        // Load system prompt
+        this.systemPrompt = data.chat.systemPrompt || '';
         // Clean all message content when loading from database
         this.messages = data.chat.messages.map((msg: AIMessage) => ({
           ...msg,
@@ -381,6 +410,18 @@ export class ChatState {
     this.resetFreshChatFlag(); // Reset fresh chat flag when starting new chat
     // Sync previous model with current selection
     this.previousModel = this.selectedModel;
+
+    // Apply default character preset for new chat
+    const defaultPreset = this.characterPresets.find(p => p.isDefault);
+    if (defaultPreset) {
+      this.selectedCharacterPresetId = defaultPreset.id;
+      this.systemPrompt = defaultPreset.systemPrompt;
+    } else {
+      // No default preset, clear system prompt
+      this.selectedCharacterPresetId = null;
+      this.systemPrompt = '';
+    }
+
     // Navigate to new chat page
     goto("/newchat", { replaceState: true, noScroll: true });
     // Reset loading flag
@@ -403,6 +444,7 @@ export class ChatState {
             title,
             model: this.selectedModel,
             messages: this.messages,
+            systemPrompt: this.systemPrompt || null,
           }),
         });
 
@@ -432,7 +474,8 @@ export class ChatState {
           body: JSON.stringify({
             title,
             model: this.selectedModel,
-            messages: this.messages
+            messages: this.messages,
+            systemPrompt: this.systemPrompt || null,
           }),
         });
 
@@ -731,6 +774,28 @@ export class ChatState {
           } else {
             throw new Error(`Failed to upload ${file.name}`);
           }
+        } else if (file.type === 'application/pdf' && !file.uploadedToRAG) {
+          // Upload PDF files to RAG API (SvelteKit proxy expects 'files')
+          const formData = new FormData();
+          formData.append('files', file.file);  // SvelteKit proxy handles conversion to 'file' for single uploads
+
+          const response = await fetch('/api/rag/documents/upload', {
+            method: 'POST',
+            body: formData
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            file.uploadedToRAG = true;
+            file.ragDocumentId = result.file_path || result.document_id;
+            // Store OCR extracted content if available
+            if (result.stats && result.stats.content) {
+              file.content = result.stats.content;
+            }
+          } else {
+            const errorText = await response.text();
+            throw new Error(`Failed to upload PDF ${file.name}: ${errorText}`);
+          }
         }
       }
     } catch (error) {
@@ -792,6 +857,218 @@ export class ChatState {
     this.isFreshChat = false;
   }
 
+  // Character preset methods
+
+  /**
+   * Load character presets from API
+   */
+  async loadCharacterPresets() {
+    if (!this.userId) return;
+
+    try {
+      this.isLoadingCharacterPresets = true;
+      const response = await fetch('/api/character-presets');
+      if (response.ok) {
+        const data = await response.json();
+        this.characterPresets = data.presets;
+
+        // Auto-select default preset if exists and no preset currently selected
+        if (!this.selectedCharacterPresetId) {
+          const defaultPreset = this.characterPresets.find(p => p.isDefault);
+          if (defaultPreset) {
+            this.selectCharacterPreset(defaultPreset.id);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load character presets:', err);
+    } finally {
+      this.isLoadingCharacterPresets = false;
+    }
+  }
+
+  /**
+   * Select a character preset and apply its system prompt
+   * If there's existing conversation history, start a new chat to avoid context confusion
+   */
+  selectCharacterPreset(presetId: string | null) {
+    // Check if we're switching to a different preset and have conversation history
+    const isSwitching = presetId !== this.selectedCharacterPresetId;
+    const hasConversation = this.messages.length > 0;
+
+    // If switching preset during an active conversation, start a new chat first
+    if (isSwitching && hasConversation) {
+      // Clear current conversation state without navigating
+      this.currentChatId = null;
+      this.messages = [];
+      this.error = null;
+      this.clearSelectedTool();
+      this.resetFreshChatFlag();
+      this.previousModel = this.selectedModel;
+
+      // Navigate to new chat
+      goto("/newchat", { replaceState: true, noScroll: true });
+    }
+
+    this.selectedCharacterPresetId = presetId;
+
+    if (presetId) {
+      const preset = this.characterPresets.find(p => p.id === presetId);
+      if (preset) {
+        this.systemPrompt = preset.systemPrompt;
+      }
+    } else {
+      // Clear system prompt when no preset selected
+      this.systemPrompt = '';
+    }
+  }
+
+  /**
+   * Create a new character preset
+   */
+  async createCharacterPreset(data: {
+    name: string;
+    systemPrompt: string;
+    description?: string;
+    isDefault?: boolean;
+  }): Promise<boolean> {
+    try {
+      const response = await fetch('/api/character-presets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      if (response.ok) {
+        const { preset } = await response.json();
+        // Reload presets to get updated list
+        await this.loadCharacterPresets();
+        toast.success(`角色「${preset.name}」已建立`);
+        return true;
+      } else {
+        const error = await response.json();
+        toast.error(error.error || '建立角色失敗');
+        return false;
+      }
+    } catch (err) {
+      console.error('Failed to create character preset:', err);
+      toast.error('建立角色失敗');
+      return false;
+    }
+  }
+
+  /**
+   * Update an existing character preset
+   */
+  async updateCharacterPreset(id: string, data: {
+    name?: string;
+    systemPrompt?: string;
+    description?: string;
+    isDefault?: boolean;
+  }): Promise<boolean> {
+    try {
+      const response = await fetch(`/api/character-presets/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      if (response.ok) {
+        const { preset } = await response.json();
+        // Reload presets to get updated list
+        await this.loadCharacterPresets();
+
+        // If updating currently selected preset, update system prompt
+        if (this.selectedCharacterPresetId === id) {
+          this.systemPrompt = preset.systemPrompt;
+        }
+
+        // If setting this preset as default, automatically select it
+        if (data.isDefault && preset.isDefault) {
+          this.selectCharacterPreset(preset.id);
+        }
+
+        toast.success(`角色「${preset.name}」已更新`);
+        return true;
+      } else {
+        const error = await response.json();
+        toast.error(error.error || '更新角色失敗');
+        return false;
+      }
+    } catch (err) {
+      console.error('Failed to update character preset:', err);
+      toast.error('更新角色失敗');
+      return false;
+    }
+  }
+
+  /**
+   * Delete a character preset
+   */
+  async deleteCharacterPreset(id: string): Promise<boolean> {
+    try {
+      const preset = this.characterPresets.find(p => p.id === id);
+      const response = await fetch(`/api/character-presets/${id}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        // If deleting currently selected preset, clear selection
+        if (this.selectedCharacterPresetId === id) {
+          this.selectedCharacterPresetId = null;
+          this.systemPrompt = '';
+        }
+
+        // Reload presets
+        await this.loadCharacterPresets();
+        toast.success(`角色「${preset?.name || ''}」已刪除`);
+        return true;
+      } else {
+        const error = await response.json();
+        toast.error(error.error || '刪除角色失敗');
+        return false;
+      }
+    } catch (err) {
+      console.error('Failed to delete character preset:', err);
+      toast.error('刪除角色失敗');
+      return false;
+    }
+  }
+
+  /**
+   * Open the character preset modal for creating/editing
+   */
+  openCharacterPresetModal(preset?: {
+    id: string;
+    name: string;
+    systemPrompt: string;
+    description?: string;
+    isDefault: boolean;
+  }) {
+    if (preset) {
+      this.editingCharacterPreset = { ...preset };
+    } else {
+      this.editingCharacterPreset = null;
+    }
+    this.showCharacterPresetModal = true;
+  }
+
+  /**
+   * Close the character preset modal
+   */
+  closeCharacterPresetModal() {
+    this.showCharacterPresetModal = false;
+    this.editingCharacterPreset = null;
+  }
+
+  /**
+   * Get currently selected preset
+   */
+  get selectedCharacterPreset() {
+    if (!this.selectedCharacterPresetId) return null;
+    return this.characterPresets.find(p => p.id === this.selectedCharacterPresetId) || null;
+  }
+
   // Submit chat message
   async handleSubmit() {
     if ((!this.prompt && this.attachedFiles.length === 0) || this.isLoading) return;
@@ -832,12 +1109,18 @@ export class ChatState {
     // Don't submit if cleaned content is empty and no files attached
     if (!cleanedPrompt && this.attachedFiles.length === 0) return;
 
-    try {
-      // Upload files first if any
-      if (this.attachedFiles.length > 0) {
-        await this.uploadAttachedFiles();
-      }
+    // Start uploading files in background (don't wait)
+    const hasPDFFiles = this.attachedFiles.some(f => f.type === 'application/pdf');
+    let pdfUploadPromise = null;
 
+    if (this.attachedFiles.length > 0) {
+      pdfUploadPromise = this.uploadAttachedFiles().catch(error => {
+        console.error('File upload error:', error);
+        toast.error('Failed to upload files');
+      });
+    }
+
+    try {
       // Create user message with attachments
       let messageContent = cleanedPrompt;
 
@@ -852,10 +1135,24 @@ export class ChatState {
         messageContent = cleanedPrompt + fileContents;
       }
 
+      // Store PDF attachments reference for later processing
+      const pdfAttachments = this.attachedFiles.filter(f => f.type === 'application/pdf');
+
+      // If no text message provided but has PDFs, add a default message
+      if (!messageContent && pdfAttachments.length > 0) {
+        messageContent = 'Please analyze this PDF:';
+      }
+
       const userMessage: AIMessage = {
         role: "user",
         content: messageContent,
-        type: this.attachedFiles.some(f => f.type.startsWith('image/')) ? "image" : "text"
+        type: this.attachedFiles.some(f => f.type.startsWith('image/')) ? "image" : "text",
+        // Add all attached files info for display (including PDFs)
+        files: this.attachedFiles.length > 0 ? this.attachedFiles.map(f => ({
+          name: f.name,
+          type: f.type,
+          size: f.size
+        })) : undefined
       };
 
       // Add image attachments to message (support multiple images)
@@ -1008,6 +1305,46 @@ export class ChatState {
           this.messages = [...this.messages, assistantMessage];
         }
 
+        // Wait for PDF upload (DOTS OCR) to complete so LLM can see the content
+        if (pdfUploadPromise) {
+          try {
+            console.log('⏳ Waiting for PDF processing to complete...');
+            await pdfUploadPromise;
+            console.log('✅ PDF upload completed, updating message with content');
+
+            // Update request message (for LLM) with actual PDF content
+            // BUT keep the user message (for display) clean without OCR text
+            const uploadedPDFs = pdfAttachments.filter(f => f.content);
+            if (uploadedPDFs.length > 0) {
+              const pdfContent = uploadedPDFs.map(f => {
+                // Truncate content to avoid exceeding context limits (keep first 10000 chars)
+                const truncatedContent = f.content && f.content.length > 10000
+                  ? f.content.substring(0, 10000) + '\n\n[... content truncated for length ...]'
+                  : f.content;
+                return `\n\n---\nPDF Document: ${f.name}\n---\n${truncatedContent}`;
+              }).join('');
+
+              // Add PDF content ONLY to the request message sent to LLM
+              // Do NOT update userMessage.content (keeps chat bubble clean)
+              const updatedContent = userMessage.content + pdfContent;
+              const msgIndex = requestMessages.findIndex(m => m === userMessage);
+              if (msgIndex >= 0) {
+                requestMessages[msgIndex].content = updatedContent;
+              }
+
+              console.log('📄 Added PDF content to LLM request (not shown in chat):', {
+                pdfCount: uploadedPDFs.length,
+                totalContentLength: pdfContent.length,
+                displayedMessage: userMessage.content,
+                llmMessage: updatedContent.substring(0, 100) + '...'
+              });
+            }
+          } catch (err) {
+            console.error('Failed to wait for PDF upload:', err);
+            // Continue with LLM request even if PDF upload fails
+          }
+        }
+
         // Use streaming chat API for multimodal (same as text-only)
         const response = await fetch("/api/chat-stream", {
           method: "POST",
@@ -1022,6 +1359,7 @@ export class ChatState {
             userId: this.userId,
             chatId: actualChatId,
             selectedTool: toolToUse,
+            systemPrompt: this.systemPrompt || undefined,
           }),
         });
 
@@ -1117,6 +1455,41 @@ export class ChatState {
           this.messages = [...this.messages, assistantMessage];
         }
 
+        // Wait for PDF upload (DOTS OCR) to complete so LLM can see the content
+        if (pdfUploadPromise) {
+          try {
+            console.log('⏳ Waiting for PDF processing to complete...');
+            await pdfUploadPromise;
+            console.log('✅ PDF upload completed, updating message with content');
+
+            // Update user message with actual PDF content
+            const uploadedPDFs = pdfAttachments.filter(f => f.content);
+            if (uploadedPDFs.length > 0) {
+              const pdfContent = uploadedPDFs.map(f => {
+                const truncatedContent = f.content && f.content.length > 10000
+                  ? f.content.substring(0, 10000) + '\n\n[... content truncated for length ...]'
+                  : f.content;
+                return `\n\n---\nPDF Document: ${f.name}\n---\n${truncatedContent}`;
+              }).join('');
+
+              const updatedContent = userMessage.content + pdfContent;
+
+              userMessage.content = updatedContent;
+              const msgIndex = requestMessages.findIndex(m => m === userMessage);
+              if (msgIndex >= 0) {
+                requestMessages[msgIndex].content = updatedContent;
+              }
+
+              console.log('📄 Updated user message with PDF content:', {
+                pdfCount: uploadedPDFs.length,
+                totalContentLength: pdfContent.length
+              });
+            }
+          } catch (err) {
+            console.error('Failed to wait for PDF upload:', err);
+          }
+        }
+
         // Extract imageUrl from the first image attachment for i2i models
         // Use the uploaded image URL (presigned R2 URL or static path) instead of /api/images/[id]
         const imageUrl = imageAttachments.length > 0 && imageAttachments[0].uploadedImageUrl
@@ -1181,6 +1554,37 @@ export class ChatState {
           this.messages = [...this.messages, assistantMessage];
         }
 
+        // Wait for PDF upload (DOTS OCR) to complete so LLM can see the content
+        if (pdfUploadPromise) {
+          try {
+            console.log('⏳ Waiting for PDF processing to complete...');
+            await pdfUploadPromise;
+            console.log('✅ PDF upload completed, updating message with content');
+
+            const uploadedPDFs = pdfAttachments.filter(f => f.content);
+            if (uploadedPDFs.length > 0) {
+              const pdfContent = uploadedPDFs.map(f => {
+                const truncatedContent = f.content && f.content.length > 10000
+                  ? f.content.substring(0, 10000) + '\n\n[... content truncated for length ...]'
+                  : f.content;
+                return `\n\n---\nPDF Document: ${f.name}\n---\n${truncatedContent}`;
+              }).join('');
+
+              const updatedContent = userMessage.content + pdfContent;
+
+              userMessage.content = updatedContent;
+              const msgIndex = requestMessages.findIndex(m => m === userMessage);
+              if (msgIndex >= 0) {
+                requestMessages[msgIndex].content = updatedContent;
+              }
+
+              console.log('📄 Updated user message with PDF content');
+            }
+          } catch (err) {
+            console.error('Failed to wait for PDF upload:', err);
+          }
+        }
+
         // Use chat API for video generation (handles video generation internally)
         const response = await fetch("/api/chat", {
           method: "POST",
@@ -1194,6 +1598,7 @@ export class ChatState {
             temperature: 0.7,
             userId: this.userId,
             chatId: actualChatId,
+            systemPrompt: this.systemPrompt || undefined,
           }),
         });
 
@@ -1228,7 +1633,7 @@ export class ChatState {
 
         // Enhanced error recovery with retry logic
         const MAX_RETRIES = 3;
-        const STREAM_TIMEOUT_MS = 30000; // 30 seconds
+        // No timeout - wait indefinitely for local LLM responses
         let retryCount = 0;
         let accumulatedContent = "";
         let streamSuccessful = false;
@@ -1246,13 +1651,40 @@ export class ChatState {
           this.messages = [...this.messages, assistantMessage];
         }
 
+        // Wait for PDF upload (DOTS OCR) to complete so LLM can see the content
+        if (pdfUploadPromise) {
+          try {
+            console.log('⏳ Waiting for PDF processing to complete...');
+            await pdfUploadPromise;
+            console.log('✅ PDF upload completed, updating message with content');
+
+            const uploadedPDFs = pdfAttachments.filter(f => f.content);
+            if (uploadedPDFs.length > 0) {
+              const pdfContent = uploadedPDFs.map(f => {
+                const truncatedContent = f.content && f.content.length > 10000
+                  ? f.content.substring(0, 10000) + '\n\n[... content truncated for length ...]'
+                  : f.content;
+                return `\n\n---\nPDF Document: ${f.name}\n---\n${truncatedContent}`;
+              }).join('');
+
+              const updatedContent = userMessage.content + pdfContent;
+
+              userMessage.content = updatedContent;
+              const msgIndex = requestMessages.findIndex(m => m === userMessage);
+              if (msgIndex >= 0) {
+                requestMessages[msgIndex].content = updatedContent;
+              }
+
+              console.log('📄 Updated user message with PDF content');
+            }
+          } catch (err) {
+            console.error('Failed to wait for PDF upload:', err);
+          }
+        }
+
         while (retryCount < MAX_RETRIES && !streamSuccessful) {
           try {
-            // Create AbortController for timeout detection
-            const abortController = new AbortController();
-            const timeoutId = setTimeout(() => abortController.abort(), STREAM_TIMEOUT_MS);
-
-            // Use streaming text chat API
+            // Use streaming text chat API (no timeout for local LLM)
             const response = await fetch("/api/chat-stream", {
               method: "POST",
               headers: {
@@ -1266,11 +1698,9 @@ export class ChatState {
                 userId: this.userId,
                 chatId: actualChatId,
                 selectedTool: toolToUse, // Pass selected tool for function calling
+                systemPrompt: this.systemPrompt || undefined,
               }),
-              signal: abortController.signal,
             });
-
-            clearTimeout(timeoutId);
 
             if (!response.ok) {
               const errorData = await response.json();

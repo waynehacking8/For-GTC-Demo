@@ -12,6 +12,9 @@ import { env } from '$env/dynamic/private';
 function generateCSP(): string {
   const isDev = env.NODE_ENV === 'development';
 
+  // Get PUBLIC_ORIGIN for development mode to allow form submissions from different hosts
+  const publicOrigin = env.PUBLIC_ORIGIN || '';
+
   // Base CSP directives
   const directives = {
     'default-src': ["'self'"],
@@ -21,12 +24,16 @@ function generateCSP(): string {
       "'unsafe-inline'", // Required for some dynamic content - should be minimized in production
       "https://challenges.cloudflare.com", // Turnstile
       "https://js.stripe.com", // Stripe
+      "https://cdnjs.cloudflare.com", // vis-network for knowledge graph visualization
+      "https://cdn.jsdelivr.net", // Bootstrap for knowledge graph visualization
       ...(isDev ? ["'unsafe-eval'", "'unsafe-inline'"] : [])
     ],
     'style-src': [
       "'self'",
       "'unsafe-inline'", // Required for dynamic styles - consider using nonces in production
-      "https://fonts.googleapis.com"
+      "https://fonts.googleapis.com",
+      "https://cdnjs.cloudflare.com", // vis-network CSS for knowledge graph visualization
+      "https://cdn.jsdelivr.net" // Bootstrap CSS for knowledge graph visualization
     ],
     'font-src': [
       "'self'",
@@ -56,7 +63,7 @@ function generateCSP(): string {
       "https://*.facebook.com", // Facebook OAuth
       "https://*.twitter.com", // Twitter OAuth
       "https://*.apple.com", // Apple OAuth
-      ...(isDev ? ["ws:", "wss:"] : []) // WebSocket for HMR in development
+      ...(isDev ? ["ws:", "wss:", "http:", publicOrigin].filter(Boolean) : []) // WebSocket for HMR + allow HTTP in development
     ],
     'frame-src': [
       "'self'",
@@ -65,9 +72,9 @@ function generateCSP(): string {
     ],
     'object-src': ["'none'"],
     'base-uri': ["'self'"],
-    'form-action': ["'self'"],
+    'form-action': ["'self'", ...(isDev && publicOrigin ? [publicOrigin] : [])], // Allow form submission to PUBLIC_ORIGIN in development
     'frame-ancestors': ["'self'", "https://preview.codecanyon.net"],
-    'upgrade-insecure-requests': []
+    ...(isDev ? {} : { 'upgrade-insecure-requests': [] }) // Only upgrade in production
   };
 
   // Build CSP string

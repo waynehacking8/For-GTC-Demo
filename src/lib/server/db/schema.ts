@@ -193,6 +193,7 @@ export const chats = pgTable("chat", {
 		mimeType?: string;
 		type?: 'text' | 'image' | 'video';
 	}>>().notNull().default([]),
+	systemPrompt: text("systemPrompt"), // Custom system prompt for personalized agent
 	pinned: boolean("pinned").notNull().default(false),
 	createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
 	updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
@@ -322,4 +323,87 @@ export const adminFiles = pgTable("admin_files", {
 	updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
 }, (table) => [
 	index('admin_files_category_idx').on(table.category),
+])
+// Memory Management Tables for LangChain Integration
+export const chatMemories = pgTable("chat_memory", {
+	id: text("id")
+		.primaryKey()
+		.$defaultFn(() => randomUUID()),
+	userId: text("userId")
+		.notNull()
+		.references(() => users.id, { onDelete: "cascade" }),
+	chatId: text("chatId"), // Optional - can be session-specific or global
+	memoryType: text("memoryType", {
+		enum: ["short_term", "long_term", "summary", "entity"]
+	}).notNull().default("short_term"),
+	key: text("key").notNull(), // Memory identifier (e.g., "user_preferences", "conversation_summary")
+	value: json("value").notNull(), // Flexible JSON storage for memory content
+	metadata: json("metadata").$type<{
+		importance?: number; // 1-10 scale for memory importance
+		lastAccessed?: string;
+		accessCount?: number;
+		tags?: string[];
+	}>(),
+	expiresAt: timestamp("expiresAt", { mode: "date" }), // Optional expiration for short-term memories
+	createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+	updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
+}, (table) => [
+	// Index for fast user + chat lookups
+	index('chat_memory_user_chat_idx').on(table.userId, table.chatId),
+	// Index for memory type filtering
+	index('chat_memory_type_idx').on(table.memoryType),
+	// Index for key lookups
+	index('chat_memory_key_idx').on(table.key),
+])
+
+// Character Presets - User-defined AI character/persona templates
+export const characterPresets = pgTable("character_preset", {
+	id: text("id")
+		.primaryKey()
+		.$defaultFn(() => randomUUID()),
+	userId: text("userId")
+		.notNull()
+		.references(() => users.id, { onDelete: "cascade" }),
+	name: text("name").notNull(), // e.g., "貓娘", "傲嬌助手", "專業顧問"
+	systemPrompt: text("systemPrompt").notNull(), // The actual character prompt
+	description: text("description"), // Optional short description
+	isDefault: boolean("isDefault").notNull().default(false), // User's default character
+	createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+	updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
+}, (table) => [
+	index('character_preset_user_idx').on(table.userId),
+])
+
+// Entity Memory - Track important entities (people, places, concepts) mentioned in conversations
+export const entityMemories = pgTable("entity_memory", {
+	id: text("id")
+		.primaryKey()
+		.$defaultFn(() => randomUUID()),
+	userId: text("userId")
+		.notNull()
+		.references(() => users.id, { onDelete: "cascade" }),
+	entityName: text("entityName").notNull(), // e.g., "John", "Paris", "Python"
+	entityType: text("entityType", {
+		enum: ["person", "place", "organization", "concept", "other"]
+	}).notNull(),
+	description: text("description"), // What we know about this entity
+	facts: json("facts").$type<Array<{
+		fact: string;
+		source?: string; // Which chat/message this came from
+		confidence?: number;
+		timestamp?: string;
+	}>>().notNull().default([]),
+	relations: json("relations").$type<Array<{
+		relatedEntity: string;
+		relationType: string; // "works_at", "located_in", "friend_of", etc.
+	}>>().default([]),
+	mentionCount: integer("mentionCount").notNull().default(1),
+	lastMentioned: timestamp("lastMentioned", { mode: "date" }).notNull().defaultNow(),
+	createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+	updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
+}, (table) => [
+	// Composite index for entity lookups
+	index('entity_memory_user_name_idx').on(table.userId, table.entityName),
+	// Index for entity type filtering
+	index('entity_memory_type_idx').on(table.entityType),
 ])

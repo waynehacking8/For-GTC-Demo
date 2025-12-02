@@ -192,8 +192,8 @@
 </script>
 
 <svelte:head>
-  <title>Login - {data.settings.siteName}</title>
-  <meta name="description" content={data.settings.siteDescription} />
+  <title>Login - {data.settings?.siteName || 'AI Platform'}</title>
+  <meta name="description" content={data.settings?.siteDescription || 'Welcome back'} />
 </svelte:head>
 
 <div
@@ -348,7 +348,7 @@
       </Button>
 
       <p class="text-xs text-muted-foreground text-center">
-        By continuing, you acknowledge {data.settings.siteName}'s
+        By continuing, you acknowledge {data.settings?.siteName || 'AI Platform'}'s
         <a class="underline underline-offset-2" href="/terms" target="_blank"
           >Terms of Service</a
         >.

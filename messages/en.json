@@ -170,24 +170,64 @@
   },
   "prompts": {
     "creative_writing": {
-      "title": "Creative Writing",
-      "description": "Help me brainstorm creative ideas about a character who discovers they have super powers...",
-      "short_description": "Help me brainstorm creative ideas about a character who discovers they have super powers..."
+      "title": "營業收入查詢",
+      "description": "正崴2024年的營業收入和營業毛利是多少？",
+      "short_description": "查詢正崴2024年的營業收入與營業毛利數據"
     },
     "code_review": {
-      "title": "Code Review",
-      "description": "Explain this code and suggest improvements:\n\n```\n// Paste your code here\n```",
-      "short_description": "Explain this code and suggest improvements for better performance and readability"
+      "title": "毛利率計算",
+      "description": "請計算正崴近三年(2022-2024)的營業毛利率變化趨勢，並說明變化原因",
+      "short_description": "計算正崴近三年的營業毛利率變化趨勢"
     },
     "analysis_research": {
-      "title": "Analysis & Research",
-      "description": "Analyze the pros and cons of using renewable energy sources like solar and wind power...",
-      "short_description": "Analyze the pros and cons of using renewable energy sources like solar and wind power..."
+      "title": "EPS成長分析",
+      "description": "比較正崴2023年和2024年的EPS，計算成長了多少百分比？",
+      "short_description": "比較正崴2023年和2024年的EPS成長百分比"
     },
     "general_discussion": {
-      "title": "General Discussion",
-      "description": "I'm curious about how artificial intelligence is changing the way we work and live. Can you share some insights?",
-      "short_description": "I'm curious about how artificial intelligence is changing the way we work and live..."
+      "title": "研發費用比例",
+      "description": "正崴2024年的研發費用佔營業收入的比例是多少？與前一年相比有何變化？",
+      "short_description": "查詢正崴2024年研發費用佔營業收入的比例"
+    },
+    "cash_flow": {
+      "title": "現金流量分析",
+      "description": "正崴2024年的營運活動現金流量是多少？與2023年相比有何變化？",
+      "short_description": "查詢正崴2024年營運活動現金流量"
+    },
+    "roe_analysis": {
+      "title": "ROE分析",
+      "description": "請計算正崴2024年的股東權益報酬率(ROE)，並與同業比較",
+      "short_description": "計算正崴2024年的股東權益報酬率"
+    },
+    "debt_ratio": {
+      "title": "負債比率",
+      "description": "正崴2024年的負債比率是多少？財務槓桿是否健康？",
+      "short_description": "查詢正崴2024年負債比率與財務結構"
+    },
+    "inventory_turnover": {
+      "title": "存貨週轉率",
+      "description": "正崴近三年的存貨週轉率變化如何？存貨管理效率有改善嗎？",
+      "short_description": "分析正崴近三年存貨週轉率變化"
+    },
+    "dividend_policy": {
+      "title": "股利政策",
+      "description": "正崴近五年的股利配發情況如何？現金殖利率是多少？",
+      "short_description": "查詢正崴股利政策與現金殖利率"
+    },
+    "profit_structure": {
+      "title": "獲利結構分析",
+      "description": "請分析正崴2024年的獲利結構，包含營業利益、業外收支和稅後淨利",
+      "short_description": "分析正崴2024年完整獲利結構"
+    },
+    "capex": {
+      "title": "資本支出",
+      "description": "正崴2024年的資本支出是多少？主要投資項目有哪些？",
+      "short_description": "查詢正崴2024年資本支出與投資項目"
+    },
+    "revenue_breakdown": {
+      "title": "營收組成分析",
+      "description": "正崴2024年各產品線或事業部門的營收佔比如何？",
+      "short_description": "分析正崴營收來源與產品組合"
     }
   },
   "forms": {

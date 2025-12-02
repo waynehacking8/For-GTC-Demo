@@ -27,3 +27,7 @@ vite.config.ts.timestamp-*
 
 # Screenshots
 /screenshots
+venv/
+__pycache__/
+logs/
+*.log

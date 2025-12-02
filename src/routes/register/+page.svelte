@@ -24,33 +24,21 @@
   function validateForm() {
     clientError = "";
 
-    // Sanitize inputs for security
-    const sanitizedEmail = authSanitizers.email(email);
-    const passwordSafetyCheck = validatePasswordSafety(password);
-
-    if (!sanitizedEmail || !passwordSafetyCheck.isValid) {
-      clientError = passwordSafetyCheck.error || "All fields are required";
+    // Simple validation for better UX
+    if (!email || !email.trim()) {
+      clientError = "Email is required";
       return false;
     }
 
-    // Comprehensive password validation
-    const passwordValidation = validatePassword(password, BALANCED_PASSWORD_POLICY, { email: sanitizedEmail });
-
-    if (!passwordValidation.isValid) {
-      clientError = passwordValidation.errors[0] || "Password does not meet requirements";
+    if (!password || password.length < 6) {
+      clientError = "Password must be at least 6 characters";
       return false;
     }
 
-    // Comprehensive email validation
-    const emailValidation = validateEmailForAuth(email);
-    if (!emailValidation.isValid) {
-      clientError = emailValidation.errors[0] || "Please enter a valid email address";
+    // Basic email format check
+    if (!email.includes('@') || !email.includes('.')) {
+      clientError = "Please enter a valid email address";
       return false;
-    }
-
-    // Show warnings if any
-    if (emailValidation.warnings.length > 0) {
-      console.warn('Email validation warnings:', emailValidation.warnings);
     }
 
     // Validate Turnstile if enabled
@@ -58,9 +46,6 @@
       clientError = "Please complete the security verification";
       return false;
     }
-
-    // Update the form fields with sanitized values
-    email = sanitizedEmail;
 
     return true;
   }
@@ -143,8 +128,8 @@
 </script>
 
 <svelte:head>
-  <title>Register - {data.settings.siteName}</title>
-  <meta name="description" content={data.settings.siteDescription} />
+  <title>Register - {data.settings?.siteName || 'AI Platform'}</title>
+  <meta name="description" content={data.settings?.siteDescription || 'Create your account'} />
   {#if data.turnstile?.enabled}
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
   {/if}
@@ -320,7 +305,7 @@
         </Button>
 
         <p class="text-xs text-muted-foreground text-center">
-          By continuing, you acknowledge {data.settings.siteName}'s
+          By continuing, you acknowledge {data.settings?.siteName || 'AI Platform'}'s
           <a class="underline underline-offset-2" href="/terms" target="_blank"
             >Terms of Service</a
           >.

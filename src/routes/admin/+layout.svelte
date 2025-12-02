@@ -42,6 +42,11 @@
       path: "/admin/subscriptions",
     },
     {
+      id: "rag",
+      label: "RAG Knowledge",
+      path: "/admin/rag",
+    },
+    {
       id: "settings",
       label: "Site Settings",
       path: "/admin/settings",
@@ -70,8 +75,8 @@
 </script>
 
 <svelte:head>
-  <title>Admin Dashboard - {data.settings.siteName}</title>
-  <meta name="description" content={data.settings.siteDescription} />
+  <title>Admin Dashboard - {data.settings?.siteName || 'AI Platform'}</title>
+  <meta name="description" content={data.settings?.siteDescription || 'Admin Dashboard'} />
 </svelte:head>
 
 <div class="min-h-screen bg-background">

@@ -30,10 +30,10 @@
 </script>
 
 <svelte:head>
-  <title>Reset Password - {data.settings.siteName}</title>
+  <title>Reset Password - {data.settings?.siteName || 'AI Platform'}</title>
   <meta
     name="description"
-    content="Reset your password for {data.settings.siteName}"
+    content="Reset your password for {data.settings?.siteName || 'AI Platform'}"
   />
 </svelte:head>
 

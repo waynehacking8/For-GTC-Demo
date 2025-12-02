@@ -22,6 +22,12 @@
     XIcon,
     FileIcon,
     ChevronDownIcon,
+    ChevronUpIcon,
+    BrainIcon,
+    PlusIcon,
+    UsersIcon,
+    PencilIcon,
+    TrashIcon,
   } from "$lib/icons/index.js";
 
   // Application types and config
@@ -55,6 +61,18 @@
 
   // Model filter state
   let modelFilter = $state<"all" | "images" | "videos">("all");
+
+  // System prompt editor state
+  let showSystemPrompt = $state(false);
+
+  // Knowledge Graph visualization state
+  let showKgDialog = $state(false);
+  let maxNodes = $state(100);
+  let minDegree = $state(1);
+  let generatingGraph = $state(false);
+  let graphGenerated = $state(false);
+  let graphUrl = $state('');
+  let kgError = $state('');
 
   // Textarea implementation based on thom-chat
   let textarea = $state<HTMLTextAreaElement>();
@@ -292,8 +310,14 @@
   // Check if send button should be disabled (empty content after cleaning)
   const sendButtonDisabled = $derived.by(() => {
     if (chatState.isLoading) return true;
-    if (!chatState.prompt) return true;
-    if (!chatState.cleanMessageContent(chatState.prompt)) return true;
+    if (chatState.isUploadingFiles) return true; // Disable while uploading files
+
+    // Allow sending if there are attached files (even without text)
+    const hasAttachedFiles = chatState.attachedFiles.length > 0;
+    const hasValidText = chatState.prompt && chatState.cleanMessageContent(chatState.prompt);
+
+    // Must have either valid text OR attached files
+    if (!hasValidText && !hasAttachedFiles) return true;
 
     // Disable for guests who have reached their limit
     if (!chatState.canGuestSendMessage()) return true;
@@ -582,43 +606,115 @@
     };
   }
 
-  // Prompt templates configuration
+  // Prompt templates configuration - 正崴財報相關問題
   const PROMPT_TEMPLATES = [
     {
-      id: "creative",
+      id: "revenue",
       title: m["prompts.creative_writing.title"](),
-      icon: BulbIcon,
-      iconColor: "text-orange-600 dark:text-orange-400",
-      bgColor: "bg-orange-100 dark:bg-orange-900/30",
+      icon: AnalyticsIcon,
+      iconColor: "text-blue-600 dark:text-blue-400",
+      bgColor: "bg-blue-100 dark:bg-blue-900/30",
       prompt: m["prompts.creative_writing.description"](),
       description: m["prompts.creative_writing.short_description"](),
     },
     {
-      id: "code",
+      id: "margin",
       title: m["prompts.code_review.title"](),
-      icon: CodeIcon,
-      iconColor: "text-blue-600 dark:text-blue-400",
-      bgColor: "bg-blue-100 dark:bg-blue-900/30",
+      icon: AnalyticsIcon,
+      iconColor: "text-green-600 dark:text-green-400",
+      bgColor: "bg-green-100 dark:bg-green-900/30",
       prompt: m["prompts.code_review.description"](),
       description: m["prompts.code_review.short_description"](),
     },
     {
-      id: "analysis",
+      id: "eps",
       title: m["prompts.analysis_research.title"](),
       icon: AnalyticsIcon,
-      iconColor: "text-green-600 dark:text-green-400",
-      bgColor: "bg-green-100 dark:bg-green-900/30",
+      iconColor: "text-orange-600 dark:text-orange-400",
+      bgColor: "bg-orange-100 dark:bg-orange-900/30",
       prompt: m["prompts.analysis_research.description"](),
       description: m["prompts.analysis_research.short_description"](),
     },
     {
-      id: "general",
+      id: "rd",
       title: m["prompts.general_discussion.title"](),
-      icon: MessageCircleIcon,
+      icon: AnalyticsIcon,
       iconColor: "text-purple-600 dark:text-purple-400",
       bgColor: "bg-purple-100 dark:bg-purple-900/30",
       prompt: m["prompts.general_discussion.description"](),
       description: m["prompts.general_discussion.short_description"](),
+    },
+    {
+      id: "cash_flow",
+      title: m["prompts.cash_flow.title"](),
+      icon: AnalyticsIcon,
+      iconColor: "text-cyan-600 dark:text-cyan-400",
+      bgColor: "bg-cyan-100 dark:bg-cyan-900/30",
+      prompt: m["prompts.cash_flow.description"](),
+      description: m["prompts.cash_flow.short_description"](),
+    },
+    {
+      id: "roe",
+      title: m["prompts.roe_analysis.title"](),
+      icon: AnalyticsIcon,
+      iconColor: "text-pink-600 dark:text-pink-400",
+      bgColor: "bg-pink-100 dark:bg-pink-900/30",
+      prompt: m["prompts.roe_analysis.description"](),
+      description: m["prompts.roe_analysis.short_description"](),
+    },
+    {
+      id: "debt",
+      title: m["prompts.debt_ratio.title"](),
+      icon: AnalyticsIcon,
+      iconColor: "text-red-600 dark:text-red-400",
+      bgColor: "bg-red-100 dark:bg-red-900/30",
+      prompt: m["prompts.debt_ratio.description"](),
+      description: m["prompts.debt_ratio.short_description"](),
+    },
+    {
+      id: "inventory",
+      title: m["prompts.inventory_turnover.title"](),
+      icon: AnalyticsIcon,
+      iconColor: "text-amber-600 dark:text-amber-400",
+      bgColor: "bg-amber-100 dark:bg-amber-900/30",
+      prompt: m["prompts.inventory_turnover.description"](),
+      description: m["prompts.inventory_turnover.short_description"](),
+    },
+    {
+      id: "dividend",
+      title: m["prompts.dividend_policy.title"](),
+      icon: AnalyticsIcon,
+      iconColor: "text-emerald-600 dark:text-emerald-400",
+      bgColor: "bg-emerald-100 dark:bg-emerald-900/30",
+      prompt: m["prompts.dividend_policy.description"](),
+      description: m["prompts.dividend_policy.short_description"](),
+    },
+    {
+      id: "profit",
+      title: m["prompts.profit_structure.title"](),
+      icon: AnalyticsIcon,
+      iconColor: "text-indigo-600 dark:text-indigo-400",
+      bgColor: "bg-indigo-100 dark:bg-indigo-900/30",
+      prompt: m["prompts.profit_structure.description"](),
+      description: m["prompts.profit_structure.short_description"](),
+    },
+    {
+      id: "capex",
+      title: m["prompts.capex.title"](),
+      icon: AnalyticsIcon,
+      iconColor: "text-violet-600 dark:text-violet-400",
+      bgColor: "bg-violet-100 dark:bg-violet-900/30",
+      prompt: m["prompts.capex.description"](),
+      description: m["prompts.capex.short_description"](),
+    },
+    {
+      id: "revenue_breakdown",
+      title: m["prompts.revenue_breakdown.title"](),
+      icon: AnalyticsIcon,
+      iconColor: "text-teal-600 dark:text-teal-400",
+      bgColor: "bg-teal-100 dark:bg-teal-900/30",
+      prompt: m["prompts.revenue_breakdown.description"](),
+      description: m["prompts.revenue_breakdown.short_description"](),
     },
   ] as const;
 
@@ -647,6 +743,27 @@
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       handlePromptTemplate(template);
+    }
+  }
+
+  // Function to generate interactive knowledge graph
+  async function generateInteractiveGraph() {
+    generatingGraph = true;
+    kgError = '';
+    try {
+      const response = await fetch(`/api/rag/graph/interactive?max_nodes=${maxNodes}&min_degree=${minDegree}`);
+      if (!response.ok) throw new Error('Failed to generate graph');
+
+      const data = await response.json();
+      if (data.success) {
+        graphGenerated = true;
+        graphUrl = data.view_url;
+      }
+    } catch (error) {
+      console.error('Failed to generate graph:', error);
+      kgError = 'Failed to generate interactive graph';
+    } finally {
+      generatingGraph = false;
     }
   }
 
@@ -679,7 +796,7 @@
 <main class="flex flex-col h-full w-full">
   <!-- Main chat area -->
   <div
-    class="flex-1 overflow-auto scroll-smooth min-h-0 overflow-x-hidden"
+    class="flex-1 overflow-auto scroll-smooth min-h-0 overflow-x-hidden relative"
     bind:this={chatContainer}
   >
     {#if chatState.isLoadingChat}
@@ -765,6 +882,35 @@
                       {@html parseMarkdown(message.content || "")}
                     </div>
                   </div>
+
+                  <!-- File attachments display (PDFs, etc.) -->
+                  {#if message.files && message.files.length > 0}
+                    <div class="flex flex-col gap-2 w-full">
+                      {#each message.files as file}
+                        <div
+                          class="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-2 text-sm"
+                        >
+                          <svg
+                            class="w-4 h-4 flex-shrink-0"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                            />
+                          </svg>
+                          <span class="truncate flex-1">{file.name}</span>
+                          <span class="text-xs text-gray-500">
+                            {(file.size / 1024).toFixed(1)} KB
+                          </span>
+                        </div>
+                      {/each}
+                    </div>
+                  {/if}
 
                   <!-- User message image attachments (outside bubble) -->
                   {#if message.type === "image" && (message.imageId || message.imageUrl || message.imageData || message.imageIds || message.images)}
@@ -931,6 +1077,23 @@
               </div>
             </div>
           {/if}
+
+          <!-- Suggested Questions (shown after messages) -->
+          {#if !chatState.isLoading}
+            <div class="mt-6 pt-4 border-t border-border/50">
+              <p class="text-xs text-muted-foreground mb-3">建議問題：</p>
+              <div class="flex flex-wrap gap-2">
+                {#each PROMPT_TEMPLATES as template}
+                  <button
+                    onclick={() => handlePromptTemplate(template.prompt)}
+                    class="px-3 py-1.5 text-sm bg-muted/50 hover:bg-muted border border-border/50 rounded-full transition-colors text-muted-foreground hover:text-foreground"
+                  >
+                    {template.title}
+                  </button>
+                {/each}
+              </div>
+            </div>
+          {/if}
         </div>
       </div>
     {/if}
@@ -939,6 +1102,268 @@
   <!-- Chat input area -->
   <div class="flex-shrink-0 p-4 w-full flex justify-center">
     <div class="w-full max-w-3xl">
+      <!-- Character Preset Selector & System Prompt Editor -->
+      <div class="mb-3">
+        <button
+          onclick={() => (showSystemPrompt = !showSystemPrompt)}
+          class="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-2"
+        >
+          {#if showSystemPrompt}
+            <ChevronUpIcon class="w-4 h-4" />
+          {:else}
+            <ChevronDownIcon class="w-4 h-4" />
+          {/if}
+          <UsersIcon class="w-4 h-4" />
+          <span>角色設定</span>
+          {#if chatState.selectedCharacterPreset}
+            <span
+              class="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs rounded-full"
+            >
+              {chatState.selectedCharacterPreset.name}
+            </span>
+          {:else if chatState.systemPrompt && !showSystemPrompt}
+            <span
+              class="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs rounded-full"
+            >
+              自訂
+            </span>
+          {/if}
+        </button>
+
+        {#if showSystemPrompt}
+          <div
+            class="border rounded-lg p-3 bg-card space-y-3 animate-in fade-in duration-200"
+          >
+            <!-- Character Presets Section (only for logged-in users) -->
+            {#if chatState.userId}
+              <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                  <span class="text-sm font-medium">角色預設</span>
+                  <button
+                    onclick={() => chatState.openCharacterPresetModal()}
+                    class="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+                  >
+                    <PlusIcon class="w-3 h-3" />
+                    新增角色
+                  </button>
+                </div>
+
+                {#if chatState.isLoadingCharacterPresets}
+                  <div class="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Spinner class="w-4 h-4" />
+                    載入中...
+                  </div>
+                {:else if chatState.characterPresets.length > 0}
+                  <div class="space-y-3">
+                    <!-- Preset buttons row -->
+                    <div class="flex flex-wrap gap-2">
+                      <!-- No selection option -->
+                      <button
+                        onclick={() => chatState.selectCharacterPreset(null)}
+                        class="px-3 py-1.5 text-sm rounded-full border transition-colors {!chatState.selectedCharacterPresetId
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-background hover:bg-accent border-border'}"
+                      >
+                        無
+                      </button>
+                      {#each chatState.characterPresets as preset}
+                        <div class="group relative">
+                          <button
+                            onclick={() => chatState.selectCharacterPreset(preset.id)}
+                            class="px-3 py-1.5 text-sm rounded-full border transition-colors {chatState.selectedCharacterPresetId === preset.id
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : 'bg-background hover:bg-accent border-border'} {preset.isDefault ? 'ring-2 ring-yellow-400 ring-offset-1' : ''}"
+                          >
+                            {preset.name}
+                            {#if preset.isDefault}
+                              <span class="ml-1 text-xs">⭐</span>
+                            {/if}
+                          </button>
+                          <!-- Edit/Delete buttons on hover -->
+                          <div class="absolute -top-1 -right-1 hidden group-hover:flex gap-0.5">
+                            <button
+                              onclick={(e) => {
+                                e.stopPropagation();
+                                chatState.openCharacterPresetModal(preset);
+                              }}
+                              class="p-0.5 bg-background border rounded-full shadow-sm hover:bg-accent"
+                              title="編輯"
+                            >
+                              <PencilIcon class="w-3 h-3" />
+                            </button>
+                            <button
+                              onclick={(e) => {
+                                e.stopPropagation();
+                                if (confirm(`確定要刪除角色「${preset.name}」嗎？`)) {
+                                  chatState.deleteCharacterPreset(preset.id);
+                                }
+                              }}
+                              class="p-0.5 bg-background border rounded-full shadow-sm hover:bg-destructive hover:text-destructive-foreground"
+                              title="刪除"
+                            >
+                              <TrashIcon class="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      {/each}
+                    </div>
+
+                    <!-- Set as default button (only show when a non-default preset is selected) -->
+                    {#if chatState.selectedCharacterPresetId}
+                      {@const selectedPreset = chatState.characterPresets.find(p => p.id === chatState.selectedCharacterPresetId)}
+                      {#if selectedPreset && !selectedPreset.isDefault}
+                        <button
+                          onclick={() => chatState.updateCharacterPreset(selectedPreset.id, { isDefault: true })}
+                          class="text-sm px-3 py-1.5 border border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-100 dark:hover:bg-yellow-900/40 rounded-lg transition-colors flex items-center gap-1"
+                        >
+                          ⭐ 將「{selectedPreset.name}」設為預設角色
+                        </button>
+                      {/if}
+                    {/if}
+                  </div>
+                {:else}
+                  <p class="text-xs text-muted-foreground">
+                    尚無角色預設。點擊「新增角色」來建立你的第一個角色。
+                  </p>
+                {/if}
+              </div>
+              <div class="border-t pt-3"></div>
+            {/if}
+
+            <!-- Custom System Prompt -->
+            <div class="space-y-2">
+              <span class="text-sm font-medium">自訂 System Prompt</span>
+              <textarea
+                bind:value={chatState.systemPrompt}
+                placeholder="輸入自訂的 system prompt 來個性化 AI 的行為（例如：「你是一個專業的程式設計助手，擅長解釋複雜的概念」）"
+                class="w-full min-h-24 max-h-48 resize-y p-2 text-sm bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              ></textarea>
+              <div class="flex justify-between items-center">
+                <p class="text-xs text-muted-foreground">
+                  自訂此對話中 AI 的回應方式
+                </p>
+                {#if chatState.systemPrompt}
+                  <button
+                    onclick={() => {
+                      chatState.systemPrompt = "";
+                      chatState.selectedCharacterPresetId = null;
+                    }}
+                    class="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    清除
+                  </button>
+                {/if}
+              </div>
+            </div>
+          </div>
+        {/if}
+      </div>
+
+      <!-- Character Preset Modal -->
+      {#if chatState.showCharacterPresetModal}
+        {@const editingPreset = chatState.editingCharacterPreset}
+        <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div class="bg-background border rounded-lg shadow-xl w-full max-w-md animate-in fade-in zoom-in-95 duration-200">
+            <div class="p-4 border-b">
+              <h3 class="text-lg font-semibold">
+                {editingPreset ? '編輯角色' : '新增角色'}
+              </h3>
+            </div>
+            {#key editingPreset?.id}
+              <form
+                onsubmit={async (e) => {
+                  e.preventDefault();
+                  const form = e.currentTarget;
+                  const formData = new FormData(form);
+                  const name = formData.get('name') as string;
+                  const systemPrompt = formData.get('systemPrompt') as string;
+                  const description = formData.get('description') as string;
+                  const isDefault = formData.get('isDefault') === 'on';
+
+                  let success: boolean;
+                  if (editingPreset) {
+                    success = await chatState.updateCharacterPreset(editingPreset.id, {
+                      name,
+                      systemPrompt,
+                      description: description || undefined,
+                      isDefault
+                    });
+                  } else {
+                    success = await chatState.createCharacterPreset({
+                      name,
+                      systemPrompt,
+                      description: description || undefined,
+                      isDefault
+                    });
+                  }
+
+                  if (success) {
+                    chatState.closeCharacterPresetModal();
+                  }
+                }}
+                class="p-4 space-y-4"
+              >
+                <div class="space-y-2">
+                  <label for="preset-name" class="text-sm font-medium">角色名稱 *</label>
+                  <input
+                    id="preset-name"
+                    name="name"
+                    type="text"
+                    required
+                    value={editingPreset?.name ?? ''}
+                    placeholder="例如：貓娘、專業顧問、傲嬌助手"
+                    class="w-full p-2 text-sm bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div class="space-y-2">
+                  <label for="preset-prompt" class="text-sm font-medium">System Prompt *</label>
+                  <textarea
+                    id="preset-prompt"
+                    name="systemPrompt"
+                    required
+                    placeholder="描述這個角色的個性、說話方式、專長等..."
+                    class="w-full min-h-32 resize-y p-2 text-sm bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                  >{editingPreset?.systemPrompt ?? ''}</textarea>
+                </div>
+                <div class="space-y-2">
+                  <label for="preset-description" class="text-sm font-medium">描述（選填）</label>
+                  <input
+                    id="preset-description"
+                    name="description"
+                    type="text"
+                    value={editingPreset?.description ?? ''}
+                    placeholder="簡短描述這個角色的用途"
+                    class="w-full p-2 text-sm bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div class="flex items-center gap-2">
+                  <input
+                    id="preset-default"
+                    name="isDefault"
+                    type="checkbox"
+                    checked={editingPreset?.isDefault ?? false}
+                    class="rounded border-border"
+                  />
+                  <label for="preset-default" class="text-sm">設為預設角色</label>
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onclick={() => chatState.closeCharacterPresetModal()}
+                  >
+                    取消
+                  </Button>
+                  <Button type="submit">
+                    {editingPreset ? '儲存' : '建立'}
+                  </Button>
+                </div>
+              </form>
+            {/key}
+          </div>
+        </div>
+      {/if}
+
       <!-- Guest limitation indicator -->
       {#if !chatState.userId}
         <div class="mb-2 px-2 text-sm text-muted-foreground">
@@ -973,7 +1398,16 @@
       {/if}
 
       <!-- Textarea with embedded model selector and send button -->
-      <div class="relative w-full border bg-background rounded-2xl shadow-lg">
+      <div class="relative w-full border bg-card rounded-2xl shadow-lg">
+        <!-- Knowledge Graph button (top-right of input box) -->
+        <button
+          onclick={() => showKgDialog = true}
+          class="absolute top-2 right-2 z-10 flex items-center gap-1.5 px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white text-xs font-medium rounded-lg shadow-sm transition-colors"
+        >
+          <BrainIcon class="w-3.5 h-3.5" />
+          <span class="hidden sm:inline">Knowledge Graph</span>
+        </button>
+
         <textarea
           bind:this={textarea}
           bind:value={chatState.prompt}
@@ -1014,9 +1448,7 @@
 
         <!-- Controls wrapper with background to prevent text overlap -->
         <div
-          class="absolute bottom-0 left-0 right-0 px-2 mx-3 h-14 {chatState.isLoading
-            ? 'bg-[#f2f2f2] dark:bg-[#141414]'
-            : 'bg-[#f2f2f2] dark:bg-[#141414]'} pointer-events-none"
+          class="absolute bottom-0 left-0 right-0 px-2 mx-3 h-14 bg-card pointer-events-none"
         >
           <!-- File Upload, Model selector, Tools buttons container -->
           <div
@@ -1091,6 +1523,7 @@
                       "text/markdown",
                       "text/csv",
                       "application/json",
+                      "application/pdf",
                     ]}
                     maxFiles={3 - chatState.attachedFiles.length}
                     class="mb-3"
@@ -1475,6 +1908,86 @@
       </div>
     </div>
   </div>
+
+  <!-- Knowledge Graph Dialog -->
+  {#if showKgDialog}
+    <div class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onclick={() => showKgDialog = false}>
+      <div class="bg-background border rounded-lg max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col" onclick={(e) => e.stopPropagation()}>
+        <!-- Header -->
+        <div class="flex justify-between items-center p-4 border-b">
+          <h2 class="text-xl font-semibold">Interactive Knowledge Graph</h2>
+          <button onclick={() => showKgDialog = false} class="text-muted-foreground hover:text-foreground">
+            <XIcon class="w-5 h-5" />
+          </button>
+        </div>
+
+        <!-- Content -->
+        <div class="flex-1 overflow-auto p-4">
+          {#if !graphGenerated}
+            <div class="space-y-4">
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium mb-2">Max Nodes</label>
+                  <input
+                    type="number"
+                    bind:value={maxNodes}
+                    min="10"
+                    max="500"
+                    class="w-full px-3 py-2 border rounded-lg bg-background"
+                  />
+                  <p class="text-xs text-muted-foreground mt-1">Number of nodes to display (10-500)</p>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium mb-2">Min Degree</label>
+                  <input
+                    type="number"
+                    bind:value={minDegree}
+                    min="0"
+                    max="10"
+                    class="w-full px-3 py-2 border rounded-lg bg-background"
+                  />
+                  <p class="text-xs text-muted-foreground mt-1">Filter nodes by minimum connections</p>
+                </div>
+              </div>
+              <button
+                onclick={generateInteractiveGraph}
+                disabled={generatingGraph}
+                class="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {generatingGraph ? 'Generating...' : 'Generate Interactive Visualization'}
+              </button>
+              {#if kgError}
+                <p class="text-sm text-red-500">{kgError}</p>
+              {/if}
+            </div>
+          {:else}
+            <div class="space-y-4">
+              <div class="border rounded-lg overflow-hidden">
+                <iframe
+                  src="/api/rag{graphUrl}"
+                  title="Interactive Knowledge Graph"
+                  class="w-full h-[600px]"
+                  sandbox="allow-scripts allow-same-origin"
+                ></iframe>
+              </div>
+              <p class="text-sm text-muted-foreground text-center">
+                Zoom with mouse wheel, drag to pan, click and drag nodes to explore the knowledge graph
+              </p>
+              <button
+                onclick={() => {
+                  graphGenerated = false;
+                  graphUrl = '';
+                }}
+                class="w-full px-4 py-2 border rounded-lg hover:bg-muted"
+              >
+                Generate New Visualization
+              </button>
+            </div>
+          {/if}
+        </div>
+      </div>
+    </div>
+  {/if}
 </main>
 
 <style>

@@ -126,7 +126,7 @@
               {...props}
               variant="ghost"
               size="sm"
-              class="opacity-0 group-hover/item:opacity-100 transition-opacity p-2 h-6 w-6 flex-shrink-0 hover:!bg-transparent"
+              class="p-2 h-6 w-6 flex-shrink-0 hover:!bg-transparent"
               onclick={(e) => e.stopPropagation()}
             >
               <MoreHorizontalIcon />

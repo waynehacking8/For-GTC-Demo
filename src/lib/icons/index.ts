@@ -1,6 +1,7 @@
 // Re-export commonly used icons for the main chat interface
 export { default as ArrowUpIcon } from "@lucide/svelte/icons/arrow-up";
 export { default as ChevronDownIcon } from "@lucide/svelte/icons/chevron-down";
+export { default as ChevronUpIcon } from "@lucide/svelte/icons/chevron-up";
 export { default as ChevronLeftIcon } from "@lucide/svelte/icons/chevron-left";
 export { default as ChevronRightIcon } from "@lucide/svelte/icons/chevron-right";
 export { default as CircleCheckIcon } from "@lucide/svelte/icons/circle-check";
@@ -74,6 +75,10 @@ export { default as LoaderIcon } from "@lucide/svelte/icons/loader";
 // General UI icons (moved from checkout/return)
 export { default as CheckCircleIcon } from "@lucide/svelte/icons/circle-check";
 export { default as XCircleIcon } from "@lucide/svelte/icons/circle-x";
+
+// Character preset icons
+export { default as PlusIcon } from "@lucide/svelte/icons/plus";
+export { default as UsersIcon } from "@lucide/svelte/icons/users";
 
 // Admin settings icons
 export { default as PaletteIcon } from "@lucide/svelte/icons/palette";

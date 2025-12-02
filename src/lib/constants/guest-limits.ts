@@ -10,7 +10,8 @@ export const GUEST_ALLOWED_MODELS = [
     "google/gemma-3-27b-it:free",
     "openai/gpt-oss-20b:free",
     "moonshotai/kimi-k2:free",
-    "z-ai/glm-4.5-air:free"
+    "z-ai/glm-4.5-air:free",
+    "Qwen/Qwen2.5-VL-7B-Instruct"  // Local vLLM multimodal model
 ];
 
 // Helper function to check if a model is allowed for guests
