@@ -7,7 +7,7 @@ import { defineConfig } from 'vite';
 export default defineConfig({
 	plugins: [
 		paraglideVitePlugin({
-			project: './project.inlang', 
+			project: './project.inlang',
 			outdir: './src/paraglide',
 			strategy: ['cookie', 'baseLocale']
 		}),
@@ -17,5 +17,10 @@ export default defineConfig({
 	],
 	ssr: {
 		noExternal: ['layerchart']
+	},
+	server: {
+		watch: {
+			ignored: ['**/image-api/**', '**/memory-api/**', '**/venv/**', '**/__pycache__/**']
+		}
 	}
 });
