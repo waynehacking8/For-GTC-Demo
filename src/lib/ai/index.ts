@@ -3,14 +3,12 @@ import { openRouterProvider } from './providers/openrouter.js';
 import { replicateProvider } from './providers/replicate.js';
 import { ollamaProvider } from './providers/ollama.js';
 import { vllmProvider } from './providers/vllm.js';
-import { qwenImageLocalProvider } from './providers/qwen-image-local.js';
 
 export const AI_PROVIDERS: AIProvider[] = [
 	openRouterProvider,
 	replicateProvider,
 	ollamaProvider,
-	vllmProvider,
-	qwenImageLocalProvider
+	vllmProvider
 ];
 
 export function getAllModels(): AIModelConfig[] {
@@ -23,7 +21,7 @@ export function getProvider(providerName: string): AIProvider | undefined {
 
 // Model name mapping for backwards compatibility
 const MODEL_NAME_ALIASES: Record<string, string> = {
-	'/home/wayne/Desktop/LocalMind/models/Qwen3-VL-32B-Instruct': './Qwen3-VL-32B-Instruct',
+	'/home/wayne/Desktop/LocalMind/models/Qwen3-VL-32B-Instruct': 'Qwen/Qwen3-VL-32B-Instruct',
 };
 
 export function getModelProvider(modelName: string): AIProvider | undefined {
@@ -44,4 +42,3 @@ export { openRouterProvider } from './providers/openrouter.js';
 export { replicateProvider } from './providers/replicate.js';
 export { ollamaProvider } from './providers/ollama.js';
 export { vllmProvider } from './providers/vllm.js';
-export { qwenImageLocalProvider } from './providers/qwen-image-local.js';

@@ -20,22 +20,8 @@ import type { ToolInstance } from '../tools/index.js';
 // Add or remove models based on what you have deployed in your vLLM server
 const VLLM_MODELS: AIModelConfig[] = [
 	{
-		name: './Qwen3-VL-32B-Instruct',
+		name: 'Qwen/Qwen3-VL-32B-Instruct',
 		displayName: 'Qwen 3 VL 32B (Multimodal)',
-		provider: 'vLLM',
-		maxTokens: 20000,
-		supportsStreaming: true,
-		supportsFunctions: false,
-		supportsTextGeneration: true,
-		supportsTextInput: true,
-		supportsImageInput: true,
-		supportsMultimodal: true,
-		isGuestAllowed: true,
-		isDemoAllowed: true
-	},
-	{
-		name: 'Qwen/Qwen2.5-VL-7B-Instruct',
-		displayName: 'Qwen 2.5 VL 7B (Multimodal)',
 		provider: 'vLLM',
 		maxTokens: 32768,
 		supportsStreaming: true,
@@ -46,58 +32,6 @@ const VLLM_MODELS: AIModelConfig[] = [
 		supportsMultimodal: true,
 		isGuestAllowed: true,
 		isDemoAllowed: true
-	},
-	{
-		name: 'meta-llama/Llama-2-7b-hf',
-		displayName: 'Llama 2 7B (vLLM)',
-		provider: 'vLLM',
-		maxTokens: 4096,
-		supportsStreaming: true,
-		supportsFunctions: false,
-		supportsTextGeneration: true,
-		supportsTextInput: true,
-		isGuestAllowed: true,
-		isDemoAllowed: true
-	},
-	{
-		name: 'llama-2-13b-chat',
-		displayName: 'Llama 2 13B Chat (vLLM)',
-		provider: 'vLLM',
-		maxTokens: 4096,
-		supportsStreaming: true,
-		supportsFunctions: false,
-		isGuestAllowed: false,
-		isDemoAllowed: true
-	},
-	{
-		name: 'mistral-7b-instruct',
-		displayName: 'Mistral 7B Instruct (vLLM)',
-		provider: 'vLLM',
-		maxTokens: 8192,
-		supportsStreaming: true,
-		supportsFunctions: false,
-		isGuestAllowed: true,
-		isDemoAllowed: true
-	},
-	{
-		name: 'codellama-34b-instruct',
-		displayName: 'CodeLlama 34B Instruct (vLLM)',
-		provider: 'vLLM',
-		maxTokens: 16384,
-		supportsStreaming: true,
-		supportsFunctions: false,
-		isGuestAllowed: false,
-		isDemoAllowed: true
-	},
-	{
-		name: 'deepseek-coder-33b-instruct',
-		displayName: 'DeepSeek Coder 33B (vLLM)',
-		provider: 'vLLM',
-		maxTokens: 16384,
-		supportsStreaming: true,
-		supportsFunctions: false,
-		isGuestAllowed: false,
-		isDemoAllowed: false
 	}
 ];
 
